@@ -47,7 +47,7 @@ is_mac() {
 }
 
 is_arm64(){
-    [[ `uname -m` == 'arm64' || `uname -m` == 'aarch64' ]]
+    [[ $(uname -m) == 'arm64' || $(uname -m) == 'aarch64' ]]
 }
 
 check_os() {
@@ -160,13 +160,31 @@ install_docker() {
     if [[ $package_manager == apt-get ]]; then
         apt_cmd="$sudo_cmd apt-get --yes --quiet"
         $apt_cmd update
-        $apt_cmd install software-properties-common gnupg-agent
-        curl -fsSL "https://download.docker.com/linux/$os/gpg" | $sudo_cmd apt-key add -
-        $sudo_cmd add-apt-repository \
-            "deb [arch=$arch] https://download.docker.com/linux/$os $(lsb_release -cs) stable"
+        $apt_cmd install ca-certificates curl gnupg
+        # Create keyrings directory if it doesn't exist
+        $sudo_cmd install -m 0755 -d /etc/apt/keyrings
+        # Download and install Docker GPG key using modern method
+        $sudo_cmd curl -fsSL "https://download.docker.com/linux/$os/gpg" -o /etc/apt/keyrings/docker.asc
+        $sudo_cmd chmod a+r /etc/apt/keyrings/docker.asc
+
+        # Determine codename for Docker repository
+        # Docker only maintains repos for stable Debian releases
+        # Fallback to bookworm for testing/unstable (trixie/sid)
+        source /etc/os-release
+        case "$VERSION_CODENAME" in
+            bookworm|bullseye|buster)
+                docker_codename="$VERSION_CODENAME"
+                ;;
+            *)
+                echo "Detected Debian testing/unstable ($VERSION_CODENAME), using bookworm for Docker repository"
+                docker_codename="bookworm"
+                ;;
+        esac
+
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/$os $docker_codename stable" | $sudo_cmd tee /etc/apt/sources.list.d/docker.list > /dev/null
         $apt_cmd update
         echo "Installing docker"
-        $apt_cmd install docker-ce docker-ce-cli containerd.io
+        $apt_cmd install docker-ce docker-ce-cli containerd.io docker-compose-plugin
     elif [[ $package_manager == zypper ]]; then
         zypper_cmd="$sudo_cmd zypper --quiet --no-gpg-checks --non-interactive"
         echo "Installing docker"
@@ -198,7 +216,7 @@ install_docker() {
 
 compose_version () {
     local compose_version
-    compose_version="$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep 'tag_name' | cut -d\" -f4)"
+    compose_version="$(curl -fsSL --max-time 10 https://api.github.com/repos/docker/compose/releases/latest | grep 'tag_name' | cut -d\" -f4)"
     echo "${compose_version:-v2.18.1}"
 }
 
@@ -209,7 +227,7 @@ install_docker_compose() {
             echo "Installing docker-compose"
             compose_url="https://github.com/docker/compose/releases/download/$(compose_version)/docker-compose-$platform-$arch_official"
             echo "Downloading docker-compose from $compose_url"
-            $sudo_cmd curl -L "$compose_url" -o /usr/local/bin/docker-compose
+            $sudo_cmd curl -fsSL --max-time 60 -L "$compose_url" -o /usr/local/bin/docker-compose
             $sudo_cmd chmod +x /usr/local/bin/docker-compose
             $sudo_cmd ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
             echo "docker-compose installed!"
