@@ -88,7 +88,7 @@ check_os() {
             ;;
         Linux\ Mint*)
             desired_os=1
-            os="linux mint"
+            os="ubuntu"
             package_manager="apt-get"
             ;;
         Red\ Hat*)
@@ -168,18 +168,23 @@ install_docker() {
         $sudo_cmd chmod a+r /etc/apt/keyrings/docker.asc
 
         # Determine codename for Docker repository
-        # Docker only maintains repos for stable Debian releases
-        # Fallback to bookworm for testing/unstable (trixie/sid)
         source /etc/os-release
-        case "$VERSION_CODENAME" in
-            bookworm|bullseye|buster)
-                docker_codename="$VERSION_CODENAME"
-                ;;
-            *)
-                echo "Detected Debian testing/unstable ($VERSION_CODENAME), using bookworm for Docker repository"
-                docker_codename="bookworm"
-                ;;
-        esac
+        if [[ "$os" == "debian" ]]; then
+            # Docker only maintains repos for stable Debian releases
+            # Fallback to bookworm for testing/unstable (trixie/sid)
+            case "$VERSION_CODENAME" in
+                bookworm|bullseye|buster)
+                    docker_codename="$VERSION_CODENAME"
+                    ;;
+                *)
+                    echo "Detected Debian testing/unstable ($VERSION_CODENAME), using bookworm for Docker repository"
+                    docker_codename="bookworm"
+                    ;;
+            esac
+        else
+            # For Ubuntu and derivatives (Pop!_OS, Mint), use UBUNTU_CODENAME if available, else VERSION_CODENAME
+            docker_codename="${UBUNTU_CODENAME:-$VERSION_CODENAME}"
+        fi
 
         echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/$os $docker_codename stable" | $sudo_cmd tee /etc/apt/sources.list.d/docker.list > /dev/null
         $apt_cmd update
