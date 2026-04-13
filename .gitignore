@@ -231,4 +231,4 @@ cython_debug/
 # LSP config files
 pyrightconfig.json
 
-
+deploy/docker/.env
