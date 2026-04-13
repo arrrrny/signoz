@@ -171,14 +171,14 @@ install_docker() {
         source /etc/os-release
         if [[ "$os" == "debian" ]]; then
             # Docker only maintains repos for stable Debian releases
-            # Fallback to bookworm for testing/unstable (trixie/sid)
+            # Fallback to bookworm for testing/unstable (sid)
             case "$VERSION_CODENAME" in
-                bookworm|bullseye|buster)
+                trixie|bookworm|bullseye|buster)
                     docker_codename="$VERSION_CODENAME"
                     ;;
                 *)
-                    echo "Detected Debian testing/unstable ($VERSION_CODENAME), using bookworm for Docker repository"
-                    docker_codename="bookworm"
+                    echo "Detected Debian testing/unstable ($VERSION_CODENAME), using trixie for Docker repository"
+                    docker_codename="trixie"
                     ;;
             esac
         else
